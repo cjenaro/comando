@@ -1,0 +1,162 @@
+# Comando - Base Controller Helpers 🎮
+
+You are working on **Comando**, the base controller system for the Foguete framework.
+
+## Package Purpose
+Comando provides base controller functionality and helper methods for handling HTTP requests and responses.
+
+## Key Responsibilities
+- Base controller class with common functionality
+- Request/response helper methods
+- Parameter parsing and validation
+- Session management
+- Flash messages
+- Authentication helpers
+- JSON/HTML rendering utilities
+
+## Core APIs
+- `self:render(view, data)` - Render view with data
+- `self:render_json(data)` - Render JSON response
+- `self:redirect(path)` - Redirect to path
+- `self:params()` - Get request parameters
+- `self:session()` - Access session data
+- `self:flash(message)` - Set flash message
+- `self:authenticate()` - Require authentication
+- `self:authorize(resource)` - Check authorization
+
+## Base Controller Pattern
+```lua
+local BaseController = {}
+BaseController.__index = BaseController
+
+function BaseController:new(request, response)
+    local controller = {
+        request = request,
+        response = response,
+        params = request.params or {},
+        session = request.session or {},
+        flash_messages = request.flash or {}
+    }
+    setmetatable(controller, self)
+    return controller
+end
+
+function BaseController:render(view, data)
+    data = data or {}
+    data.flash = self.flash_messages
+    data.session = self.session
+    
+    return {
+        status = 200,
+        headers = { ["Content-Type"] = "text/html" },
+        body = self:render_template(view, data)
+    }
+end
+
+return BaseController
+```
+
+## Controller Implementation
+```lua
+local BaseController = require("foguete.comando")
+local User = require("app.models.user")
+
+local UsersController = BaseController:new()
+
+function UsersController:index()
+    local users = User:all()
+    return self:render("users/index", { users = users })
+end
+
+function UsersController:show()
+    local user = User:find(self.params.id)
+    if not user then
+        return self:not_found()
+    end
+    return self:render("users/show", { user = user })
+end
+
+function UsersController:create()
+    local user = User:new(self.params.user)
+    if user:save() then
+        self:flash("User created successfully")
+        return self:redirect("/users/" .. user.id)
+    else
+        return self:render("users/new", { user = user, errors = user.errors })
+    end
+end
+
+return UsersController
+```
+
+## Authentication & Authorization
+```lua
+function BaseController:authenticate()
+    if not self.session.user_id then
+        return self:redirect("/login")
+    end
+end
+
+function BaseController:current_user()
+    if not self._current_user and self.session.user_id then
+        self._current_user = User:find(self.session.user_id)
+    end
+    return self._current_user
+end
+
+function BaseController:authorize(action, resource)
+    local user = self:current_user()
+    if not user or not user:can(action, resource) then
+        return self:forbidden()
+    end
+end
+```
+
+## Response Helpers
+```lua
+function BaseController:json(data, status)
+    return {
+        status = status or 200,
+        headers = { ["Content-Type"] = "application/json" },
+        body = json.encode(data)
+    }
+end
+
+function BaseController:not_found(message)
+    return {
+        status = 404,
+        headers = { ["Content-Type"] = "text/html" },
+        body = message or "Not Found"
+    }
+end
+
+function BaseController:internal_error(message)
+    return {
+        status = 500,
+        headers = { ["Content-Type"] = "text/html" },
+        body = message or "Internal Server Error"
+    }
+end
+```
+
+## Coding Guidelines
+- Controllers should be thin - delegate to models/services
+- Use proper HTTP status codes
+- Implement consistent error handling
+- Support both HTML and JSON responses
+- Use middleware for cross-cutting concerns
+- Follow RESTful conventions
+- Implement proper parameter validation
+
+## Testing Requirements
+- Test all controller actions
+- Verify proper response formats
+- Test authentication/authorization
+- Test parameter validation
+- Test error handling scenarios
+- Mock external dependencies
+
+## Dependencies
+- Foguete.rota for routing integration
+- Template engine for view rendering  
+- JSON library for API responses 
